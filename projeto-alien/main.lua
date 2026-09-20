@@ -1,0 +1,388 @@
+-- title:  Zorp goes to earth
+-- author: Gus Kruz
+-- desc:   disguise guessing game for Livre Game Jam
+-- script: lua
+ 
+-- Lista de partes
+local parts = {
+    eyes = {
+        { id = 260, name = "Quadrangular" },
+        { id = 256, name = "Normal" },
+        { id = 262, name = "Elegante" },
+        { id = 258, name = "Olhos de Pato" }
+    },
+    nose = {
+        { id = 324, name = "Bico de Pato" },
+        { id = 320, name = "Normal" },
+        { id = 322, name = "Triangulo" },
+        { id = 326, name = "Bico Charmoso" }
+    },
+    mouth = {
+        { id = 386, name = "Retangulo" },
+        { id = 390, name = "Bico Libre" },
+        { id = 384, name = ";-;" },
+        { id = 388, name = "Bico de Pato" }
+    }
+}
+
+-- Lista de niveis
+local levels = {
+    {
+        target = "Matematico",
+        briefing = "Para que possamos conhecer a cultura humanos devemos desvendar como eles usam a linguagem mais fundamental: a matematica. Para isso voce deve ganhar a confianca do seu lider em matematica.",
+        solution = { eyes = 1, nose = 3, mouth = 1 },
+        success_msg = "Como seu rosto seguia a proporcao aurea, ele achou de bom tom te convidar para  sua sala.",
+        fail_msg = "Ele achou sua cara mais feia que dividir por 0."
+    },
+    {
+        target = "Galinha",
+        briefing = "Agora precisamos entender a origem dos humanos. Segundo nossos pesquisadores trouxeram, as galinhas existiam antes mesmo dos humanos surgirem. Portanto voce deve se disfarcar como um colega delas.",
+        solution = { eyes = 4, nose = 1, mouth = 4 },
+        success_msg = "A galinha te achou tao resenha que se sentiu a vontade pra dividir os segredos dos humanos.",
+        fail_msg = "O conselho do galinheiro te achou tao estranho que te baniram para sempre."
+    },
+    {
+        target = "Programador Livre",
+        briefing = "Nossos pesquisadores revelaram que alguns humanos produzem tecnologia aberta, escolha um disfarce elegante para se aproximar deles.",
+        solution = { eyes = 3, nose = 4, mouth = 2 },
+        success_msg = "Ele te achou tao elegante que vai dividir seus repositorios com voce.",
+        fail_msg = "Ele achou que tem uma carinha de quem paga pela licenca do windows."
+    }
+}
+
+-- ==========================================
+-- VARIAVEIS DE ESTADO
+-- ==========================================
+local state = "TITLE" -- TITLE, BRIEFING, GAME, SUCCESS, FAIL, ENDING
+local current_level = 1
+
+-- Disfarce atual selecionado (indices das opções)
+local current_disguise = { eyes = 2, nose = 2, mouth = 3 }
+
+local selected_category = 1 -- 1: olhos, 2: nariz, 3: boca, 4: confirmar
+local categories = {"eyes", "nose", "mouth"}
+
+local t = 0 -- contador de tempo
+
+-- ==========================================
+-- FUNCOES AUXILIARES
+-- ==========================================
+function draw_text_centered(text, y, color)
+    local width = print(text, -100, -100) -- pega a largura sem desenhar
+    print(text, (240 - width) / 2, y, color)
+end
+
+function print_wrap(text, x, y, max_w, color)
+    local words = {}
+    for word in text:gmatch("%S+") do
+        table.insert(words, word)
+    end
+    
+    local line = ""
+    local cur_y = y
+    for _, word in ipairs(words) do
+        local test_line = line == "" and word or (line .. " " .. word)
+        local w = print(test_line, -100, -100)
+        if w > max_w and line ~= "" then
+            print(line, x, cur_y, color)
+            cur_y = cur_y + 10
+            line = word
+        else
+            line = test_line
+        end
+    end
+    if line ~= "" then
+        print(line, x, cur_y, color)
+        cur_y = cur_y + 10
+    end
+    return cur_y
+end
+
+function check_solution()
+    local lvl = levels[current_level]
+    if current_disguise.eyes == lvl.solution.eyes and
+       current_disguise.nose == lvl.solution.nose and
+       current_disguise.mouth == lvl.solution.mouth then
+        return true
+    end
+    return false
+end
+
+-- ==========================================
+-- ESTADOS DO JOGO
+-- ==========================================
+
+function update_title()
+    if btnp(4) then -- Botao Z
+        state = "BRIEFING"
+    end
+end
+
+function draw_title()
+    cls(0)
+    draw_text_centered("MISSION FACE DISGUISE: Zorp goes to earth", 30, 6)
+    draw_text_centered("SIMULATOR ENGINE", 45, 6)
+    
+    -- Animacao de texto
+    if (t // 30) % 2 == 0 then
+        draw_text_centered("Pressione Z para iniciar", 90, 12)
+    end
+end
+
+function update_briefing()
+    if btnp(4) then
+        state = "GAME"
+    end
+end
+
+function draw_briefing()
+    cls(0)
+    local lvl = levels[current_level]
+    draw_text_centered("ALVO: " .. lvl.target, 12, 6)
+    line(20, 22, 220, 22, 6)
+    
+    -- Desenha briefing quebrando automaticamente as linhas
+    print_wrap(lvl.briefing, 15, 32, 210, 12)
+    
+    if (t // 30) % 2 == 0 then
+        draw_text_centered("Pressione Z para simular", 120, 12)
+    end
+end
+
+function update_game()
+    -- Navegacao vertical
+    if btnp(0) then -- Cima
+        selected_category = selected_category - 1
+        if selected_category < 1 then selected_category = 4 end
+    end
+    if btnp(1) then -- Baixo
+        selected_category = selected_category + 1
+        if selected_category > 4 then selected_category = 1 end
+    end
+    
+    -- Navegacao horizontal
+    if selected_category <= 3 then
+        local cat_name = categories[selected_category]
+        local num_options = #parts[cat_name]
+        
+        if btnp(2) then -- Esquerda
+            current_disguise[cat_name] = current_disguise[cat_name] - 1
+            if current_disguise[cat_name] < 1 then current_disguise[cat_name] = num_options end
+        end
+        if btnp(3) then -- Direita
+            current_disguise[cat_name] = current_disguise[cat_name] + 1
+            if current_disguise[cat_name] > num_options then current_disguise[cat_name] = 1 end
+        end
+    else
+        -- Clicou em Confirmar
+        if btnp(4) then
+            if check_solution() then
+                state = "SUCCESS"
+            else
+                state = "FAIL"
+            end
+        end
+    end
+end
+
+function draw_game()
+    cls(13) -- Fundo cinza claro
+    
+    -- Desenhar rosto do alien (Base) como sprite 32x32
+    -- O Sprite ID 448 (linha 13) sera a cabeca base.
+    spr(448, 112, 19, 0, 3, 0, 0, 4, 4)
+    
+    -- Pegar IDs das partes
+    local eye_id = parts.eyes[current_disguise.eyes].id
+    local nose_id = parts.nose[current_disguise.nose].id
+    local mouth_id = parts.mouth[current_disguise.mouth].id
+    
+    -- Desenhar as sprites (transparencia=0, scale=2 (16x16 pixels vira 32x32), width=2, height=2)
+    spr(eye_id, 144, 40, 0, 2, 0, 0, 2, 2)
+    spr(nose_id, 144, 60, 0, 2, 0, 0, 2, 2)
+    spr(mouth_id, 144, 80, 0, 2, 0, 0, 2, 2)
+
+    -- Menu lateral
+    rect(0, 0, 90, 136, 0)
+    print("DISFARCE", 5, 5, 6)
+    line(5, 13, 80, 13, 6)
+    
+    local menu_y = 25
+    local colors = {12, 12, 12, 12}
+    colors[selected_category] = 6 -- Verde para destacar
+    
+    -- Renderizar opcoes de menu
+    print("< Olhos >", 5, menu_y, colors[1])
+    print(parts.eyes[current_disguise.eyes].name, 5, menu_y + 10, 12)
+    
+    print("< Nariz >", 5, menu_y + 30, colors[2])
+    print(parts.nose[current_disguise.nose].name, 5, menu_y + 40, 12)
+    
+    print("< Boca >", 5, menu_y + 60, colors[3])
+    print(parts.mouth[current_disguise.mouth].name, 5, menu_y + 70, 12)
+    
+    print("CONFIRMAR", 5, menu_y + 95, colors[4])
+    
+    if selected_category == 4 and (t // 15) % 2 == 0 then
+        print("CONFIRMAR", 5, menu_y + 95, 12)
+    end
+end
+
+function update_success()
+    if btnp(4) then
+        if current_level >= #levels then
+            state = "ENDING"
+        else
+            current_level = current_level + 1
+            state = "BRIEFING"
+            current_disguise = {eyes=2, nose=2, mouth=3}
+        end
+    end
+end
+
+function draw_success()
+    cls(0)
+    draw_text_centered("SUCESSO NO SIMULADOR!", 40, 6)
+    
+    local lvl = levels[current_level]
+    local msg = lvl and lvl.success_msg or "Sucesso!"
+    print_wrap(msg, 20, 60, 200, 12)
+    
+    if (t // 30) % 2 == 0 then
+        draw_text_centered("Pressione Z para continuar", 110, 12)
+    end
+end
+
+function update_fail()
+    if btnp(4) then
+        state = "GAME"
+    end
+end
+
+function draw_fail()
+    cls(0)
+    draw_text_centered("FALHA NO DISFARCE!", 40, 2)
+    
+    local msg = levels[current_level].fail_msg
+    print_wrap(msg, 20, 60, 200, 12)
+    
+    if (t // 30) % 2 == 0 then
+        draw_text_centered("Pressione Z para tentar de novo", 110, 12)
+    end
+end
+
+function update_ending()
+    if btnp(4) then
+        current_level = 1
+        current_disguise = {eyes=2, nose=2, mouth=3}
+        state = "TITLE"
+    end
+end
+
+function draw_ending()
+    cls(0)
+    draw_text_centered("MISSAO REAL INICIADA", 15, 6)
+    line(20, 25, 220, 25, 6)
+    
+    draw_text_centered("Agora que Zorp tem o treinamento necessario ele desca a Terra...", 35, 12)
+    
+    print_wrap("Alguns humanos olham esquisito... Os niveis de desconfianca estao em 100%!", 20, 55, 200, 12)
+    
+    if (t // 10) % 6 > 2 then
+        draw_text_centered("FALHA NA MISSAO!", 95, 2)
+        draw_text_centered("ZORP QUEBROU A CARA! :(", 105, 2)
+    end
+    
+    draw_text_centered("Pressione Z para reiniciar", 125, 12)
+end
+
+-- ==========================================
+-- LOOP PRINCIPAL (TIC)
+-- ==========================================
+function TIC()
+    t = t + 1
+    
+    if state == "TITLE" then
+        update_title()
+        draw_title()
+    elseif state == "BRIEFING" then
+        update_briefing()
+        draw_briefing()
+    elseif state == "GAME" then
+        update_game()
+        draw_game()
+    elseif state == "SUCCESS" then
+        update_success()
+        draw_success()
+    elseif state == "FAIL" then
+        update_fail()
+        draw_fail()
+    elseif state == "ENDING" then
+        update_ending()
+        draw_ending()
+    end
+end
+
+-- <SPRITES>
+-- 000:00000000000000000000000000ccc0000ccccc000ccccc00ccfcccc0ccfffcc0
+-- 001:000000000000000000000000000ccc0000ccccc000ccccc00ccccfcc0ccfffcc
+-- 002:00000000000000000000000000eeee000eaaaae0eaaaaaaeeaffaaaeeaffaaae
+-- 003:00000000000000000000000000eeee000eaaaae0eaaaaaaeeaaaffaeeaaaffae
+-- 004:00000000000000000000000000000000fffffff0f44444f0f44444f0f44f44f0
+-- 005:000000000000000000000000000000000fffffff0f44444f0f44444f0f44f44f
+-- 006:0000000000000000000000000000000000ccc0000ccccc00cccccc00cccfccc0
+-- 007:00000000000000000000000000000000000ccc0000ccccc000cccccc0cccfccc
+-- 016:ccfffcc0ccfcccc00ccccc0000ccc00000000000000000000000000000000000
+-- 017:0ccfffcc0ccccfcc00ccccc0000ccc0000000000000000000000000000000000
+-- 018:eaaaaaae0eaaaae000eeee000000000000000000000000000000000000000000
+-- 019:eaaaaaae0eaaaae000eeee000000000000000000000000000000000000000000
+-- 020:f44444f0f44444f0fffffff00000000000000000000000000000000000000000
+-- 021:0f44444f0f44444f0fffffff0000000000000000000000000000000000000000
+-- 022:ccfffcc0ccfffcc0ccfffcc00000000000000000000000000000000000000000
+-- 023:0ccfffcc0ccfffcc0ccfffcc0000000000000000000000000000000000000000
+-- 066:0000000000000000000000000000000500000005000000550000055500000555
+-- 067:0000000000000000000000005000000050000000550000005550000055500000
+-- 068:0000000000000000000000000000000000000033000003330000333300003333
+-- 069:0000000000000000000000000000000033000000333000003333000033330000
+-- 070:00000000000000000000000000000000000000000000444400044f4400444444
+-- 071:00000000000000000000000000000000000000004444000044f4400044444400
+-- 080:00000f0000000000000000000000000000000000000000000000000000000000
+-- 081:00f0000000000000000000000000000000000000000000000000000000000000
+-- 082:0000555500005555000555550055555500000000000000000000000000000000
+-- 083:5555000055550000555550005555550000000000000000000000000000000000
+-- 084:00033f330033333300f33333000fffff00000000000000000000000000000000
+-- 085:33f330003333330033333f00fffff00000000000000000000000000000000000
+-- 086:004f44440044ffff000444440000000000000000000000000000000000000000
+-- 087:4444f400ffff4400444440000000000000000000000000000000000000000000
+-- 130:000000000000000000000000000000000000000000ffffff00f9999900f99999
+-- 131:0000000000000000000000000000000000000000ffffff0099999f0099999f00
+-- 132:0000000000300000000333330000333300000000000000000000000000000000
+-- 133:0000000000000300333330003333000000000000000000000000000000000000
+-- 134:0040000000044444000044440000000000000000000000000000000000000000
+-- 135:0000040044444000444400000000000000000000000000000000000000000000
+-- 144:00000000000fffff000000000000000000000000000000000000000000000000
+-- 145:00000000fffff000000000000000000000000000000000000000000000000000
+-- 146:00f9999900f9ffff00f9999900ffffff00000000000000000000000000000000
+-- 147:99999f00ffff9f0099999f00ffffff0000000000000000000000000000000000
+-- 192:0000000000000000000000000000000000000000000000000000000f000000f6
+-- 193:0000000000000fff000ff66600f666660f666666f66666666666666666666666
+-- 194:00000000fff00000666ff00066666f00666666f06666666f6666666666666666
+-- 195:000000000000000000000000000000000000000000000000f00000006f000000
+-- 208:00000f6600000f660000f666000f6666000f6666000f6666000f6666000f6666
+-- 209:6666666666666666666666666666666666666666666666666666666666666666
+-- 210:6666666666666666666666666666666666666666666666666666666666666666
+-- 211:66f0000066f00000666f00006666f0006666f0006666f0006666f0006666f000
+-- 224:0000f6660000f6660000f66600000f6600000f66000000f6000000f60000000f
+-- 225:6666666666666666666666666666666666666666666666666666666666666666
+-- 226:6666666666666666666666666666666666666666666666666666666666666666
+-- 227:666f0000666f0000666f000066f0000066f000006f0000006f000000f0000000
+-- 240:0000000f00000000000000000000000000000000000000000000000000000000
+-- 241:66666666f6666666f6666666f66666660f66666600ff66660000ffff00000000
+-- 242:666666666666666f6666666f6666666f666666f06666ff00ffff000000000000
+-- 243:f000000000000000000000000000000000000000000000000000000000000000
+-- </SPRITES>
+
+-- <PALETTE>
+-- 000:1a1c2c5d275db13e53ef7d57ffcd75a7f07038b76425717929366f3b5dc941a6f673eff7f4f4f494b0c2566c86333c57
+-- </PALETTE>
+
